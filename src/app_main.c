@@ -347,12 +347,31 @@ s32 sensors_task(void *arg) {
 #ifdef USE_EPD
 	task_lcd();
 #endif
-#if !USE_BLE && USE_DISPLAY
-	if(zb_isDeviceJoinedNwk())
-			return -1; // delete timer
-#endif
 	return 0;
 }
+
+#if !USE_BLE
+#if USE_DISPLAY
+#define SENSORS_TIMER_MS	(g_zcl_pollCtrlAttrs.longPollInterval * POLL_RATE_QUARTERSECONDS)
+#else
+#define SENSORS_TIMER_MS	(600 * 1000) // only keeps a wake-up timer
+#endif
+
+/* Clears the handle before the timer is deleted: the timer slot can be reused */
+s32 sensors_timer_cb(void *arg) {
+	sensors_task(arg);
+	if(zb_isDeviceJoinedNwk() && !g_sensorAppCtx.linkDown) {
+		g_sensorAppCtx.timerTaskEvt = NULL;
+		return -1; // delete timer
+	}
+	return 0;
+}
+
+void app_sensorsTimerStart(void) {
+	if(!g_sensorAppCtx.timerTaskEvt)
+		g_sensorAppCtx.timerTaskEvt = TL_ZB_TIMER_SCHEDULE(sensors_timer_cb, NULL, SENSORS_TIMER_MS);
+}
+#endif
 
 /**********************************************************************
  * FUNCTIONS
@@ -429,6 +448,12 @@ void app_task(void)
 		} else
 #endif // USE_SENSOR_TH
 		{
+			// no timer: the device would sleep until a button press
+			if(!g_sensorAppCtx.timerTaskEvt) {
+				ev_timer_event_t *n = ev_timer_nearestGet();
+				if(!n || n->timeout > SENSORS_TIMER_MS + 1000)
+					app_sensorsTimerStart();
+			}
 			sws_buffer_flush();
 			drv_pm_lowPowerEnter();
 		}

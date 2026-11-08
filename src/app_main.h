@@ -40,8 +40,9 @@ typedef struct{
 	u8 	times;		// blink times
 
 	u8  reportFlg;
+	u8  linkDown;	// =1: network lost, rejoin in progress
 
-#if	!USE_BLE && USE_DISPLAY
+#if	!USE_BLE
 	ev_timer_event_t *timerTaskEvt;
 #endif
 	ev_timer_event_t *timerLedEvt;
@@ -334,7 +335,14 @@ typedef struct {
 extern poll_ctrl_wrk_t poll_ctrl_wrk;
 #endif
 
+#ifdef ZCL_POLL_CTRL
+void sensorDevice_zclCheckInCmdSend(void);
+#endif
+
 void set_PollRate(void);
+void app_pollRateApply(void);
+void app_fastPollWindow(u32 ms);
+void app_rejoinNow(void);
 
 #if USE_UPDATE_POLLRATE
 void up_PollRate(u32 period_ms);
@@ -342,6 +350,10 @@ void up_PollRate(u32 period_ms);
 
 void scan_task(void);
 s32 sensors_task(void *arg);
+#if !USE_BLE
+s32 sensors_timer_cb(void *arg);
+void app_sensorsTimerStart(void);
+#endif
 void read_sensor_and_show(void);
 #if	USE_DISPLAY
 void show_th(void);

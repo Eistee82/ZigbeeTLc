@@ -174,6 +174,8 @@ void sensorDevice_zclWriteReqCmd(u16 clusterId, zclWriteCmd_t *pWriteReqCmd)
 	 if(clusterId == ZCL_CLUSTER_GEN_POLL_CONTROL){
 		for(int i = 0; i < numAttr; i++) {
 			if(attr[i].attrID == ZCL_ATTRID_CHK_IN_INTERVAL) {
+				if(poll_ctrl_wrk.zclCheckInTimerEvt)
+					TL_ZB_TIMER_CANCEL(&poll_ctrl_wrk.zclCheckInTimerEvt);
 				sensorDevice_zclCheckInStart();
 			} else if(attr[i].attrID == ZCL_ATTRID_LONG_POLL_INTERVAL) {
 				test_set_measure_longpoll_interval(g_zcl_pollCtrlAttrs.longPollInterval >> 2);
@@ -618,7 +620,13 @@ void sensorDevice_zclCheckInCmdSend(void)
 	epInfo_t dstEpInfo;
 	TL_SETSTRUCTCONTENT(dstEpInfo, 0);
 
-	dstEpInfo.dstAddrMode = APS_DSTADDR_EP_NOTPRESETNT;
+	if(zb_bindingTblSearched(ZCL_CLUSTER_GEN_POLL_CONTROL, SENSOR_DEVICE_ENDPOINT)) {
+		dstEpInfo.dstAddrMode = APS_DSTADDR_EP_NOTPRESETNT;
+	} else {
+		// no binding: check in with the coordinator
+		dstEpInfo.dstAddrMode = APS_SHORT_DSTADDR_WITHEP;
+		dstEpInfo.dstAddr.shortAddr = 0x0000;
+	}
 	dstEpInfo.dstEp = SENSOR_DEVICE_ENDPOINT;
 	dstEpInfo.profileId = HA_PROFILE_ID;
 
@@ -642,7 +650,7 @@ s32 sensorDevice_zclCheckInTimerCb(void *arg)
 
 void sensorDevice_zclCheckInStart(void)
 {
-	if(zb_bindingTblSearched(ZCL_CLUSTER_GEN_POLL_CONTROL, SENSOR_DEVICE_ENDPOINT)){
+	if(zb_isDeviceJoinedNwk()){
 		zcl_pollCtrlAttr_t *pPollCtrlAttr = zcl_pollCtrlAttrGet();
 
 		if(!poll_ctrl_wrk.zclCheckInTimerEvt){
@@ -657,13 +665,8 @@ void sensorDevice_zclCheckInStart(void)
 
 void sensorDevice_zclSetFastPollMode(bool fastPollMode)
 {
-	zcl_pollCtrlAttr_t *pPollCtrlAttr = zcl_pollCtrlAttrGet();
-
 	poll_ctrl_wrk.isFastPollMode = fastPollMode;
-	u32 pollRate = fastPollMode ?
-			pPollCtrlAttr->shortPollInterval : pPollCtrlAttr->longPollInterval;
-
-	zb_setPollRate(pollRate * POLL_RATE_QUARTERSECONDS);
+	app_pollRateApply();
 }
 
 s32 sensorDevice_zclFastPollTimeoutCb(void *arg)
@@ -767,7 +770,7 @@ status_t test_set_measure_longpoll_interval(u32 measureInterval) {
 #endif
 	sws_printf("Set measureInterval: %d sec\n", measureInterval);
 	g_zcl_pollCtrlAttrs.longPollInterval = measureInterval << 2; // in 1/4 sec
-	zb_setPollRate(g_zcl_pollCtrlAttrs.longPollInterval * POLL_RATE_QUARTERSECONDS);
+	app_pollRateApply();
 #if ZCL_THERMOSTAT_UI_CFG
 	g_zcl_thermostatUICfgAttrs.measureInterval = (u8)measureInterval;
 #elif defined(ZCL_ILLUMINANCE_LEVEL_SENSING)
@@ -790,7 +793,7 @@ static status_t sensorDevice_zclPollCtrlSetShortPollIntervalCmdHandler(zcl_setSh
 	&& (pCmd->newShortPollInterval <= pPollCtrlAttr->longPollInterval)
 		){
 		pPollCtrlAttr->shortPollInterval = pCmd->newShortPollInterval;
-		zb_setPollRate(pPollCtrlAttr->shortPollInterval * POLL_RATE_QUARTERSECONDS);
+		app_pollRateApply();
 	}else{
 		return ZCL_STA_INVALID_VALUE;
 	}

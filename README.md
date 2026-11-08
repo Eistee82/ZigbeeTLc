@@ -189,6 +189,8 @@ The flashing "BT" icon is called by the "identify" command.
 
 40. Ver 0.1.4.0. Added 3 variants for [ZG-204ZV](https://pvvx.github.io/ZG-204ZV/). Modification of the reporting function. Update zhaquirks:zigbeetlc.py. Fixed EPD reset for CGG1. Added TH03_ZBPS1.0 ("Zbeacon TH01"), ZBEACON-TH01 v2.0 PCB, ZG-204ZS/ZG-204ZM, [KCTW1Z](https://github.com/pvvx/ZigbeeTLc/pull/310) - Moes ZSS-KB-TH.
 
+41. Ver 0.1.4.1. LYWSD03MMC reliability: fixed stale sensor timer handle, escalating rejoin period, reports and check-in to the coordinator without binding, short fast poll after join, boot and button press, Device_annce after rejoin, rejoin on button press while offline, debounced low battery cut-off.
+
 
 ## Make
 
